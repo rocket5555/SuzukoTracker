@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SuzukoTracker | Cloud Pro Edition</title>
+    <title>SuzukoTracker</title>
+    
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%234F46E5'/><text x='50' y='72' font-family='system-ui, sans-serif' font-size='65' font-weight='bold' fill='white' text-anchor='middle'>S</text></svg>">
+
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
@@ -40,7 +43,7 @@
         .card { background: var(--card-bg); border: 1px solid var(--card-border); box-shadow: var(--shadow); padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem; transition: background-color 0.2s ease, border-color 0.2s ease; }
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem; }
         h1, h2, h3 { margin: 0; color: var(--text); font-weight: 700; }
-        h1 { font-size: 2rem; letter-spacing: -0.02em; }
+        h1 { font-size: 2rem; letter-spacing: -0.02em; display: flex; align-items: center; gap: 0.5rem; }
         h2 { font-size: 1.25rem; margin-bottom: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.75rem; }
 
         /* CLOUD USER NAV */
@@ -228,7 +231,10 @@
     </div>
 
     <div class="header">
-        <h1>Suzuko<span style="color: var(--primary); font-weight: 300;">Tracker</span></h1>
+        <h1>
+            <svg width="32" height="32" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="var(--primary)"/><text x="50" y="72" font-family="system-ui, sans-serif" font-size="65" font-weight="bold" fill="white" text-anchor="middle">S</text></svg>
+            Suzuko<span style="color: var(--primary); font-weight: 300;">Tracker</span>
+        </h1>
         <div class="user-nav">
             <span id="userDisplayName">Not logged in</span>
             <button id="btnSignOut" class="btn-text" style="font-size: 0.8rem; color: var(--error);">Sign Out</button>
@@ -456,6 +462,20 @@
         </div>
     </div>
 
+    <div class="card flex-between" style="flex-wrap: wrap; gap: 1rem; border: 1px dashed var(--card-border); background: transparent;">
+        <div>
+            <h3 style="margin-bottom: 0.5rem;">Data Management</h3>
+            <p class="text-muted" style="margin: 0;">Export your data to a JSON file for backup.</p>
+        </div>
+        <div style="display: flex; gap: 1rem; align-items: center;">
+            <button type="button" class="btn-secondary" onclick="exportData()">⬇️ Export</button>
+            <div>
+                <input type="file" id="importFile" accept=".json" style="display: none;" onchange="importData(event)">
+                <button type="button" class="btn-secondary" onclick="document.getElementById('importFile').click()">⬆️ Import</button>
+            </div>
+        </div>
+    </div>
+
     <div id="holidayModal" class="modal-overlay">
         <div class="card">
             <h2>Manage Holidays</h2>
@@ -634,12 +654,12 @@
         // FIREBASE INTEGRATION & AUTHENTICATION SUITE
         // ============================================================
         const firebaseConfig = {
-  apiKey: "AIzaSyD_DepdIJriScUqUi_poT_KbF5oWCk73MY",
-  authDomain: "suzukotracker.firebaseapp.com",
-  projectId: "suzukotracker",
-  storageBucket: "suzukotracker.firebasestorage.app",
-  messagingSenderId: "902157230634",
-  appId: "1:902157230634:web:47b60c34e1d9ef05529953"
+            apiKey: "AIzaSyD_DepdIJriScUqUi_poT_KbF5oWCk73MY",
+            authDomain: "suzukotracker.firebaseapp.com",
+            projectId: "suzukotracker",
+            storageBucket: "suzukotracker.firebasestorage.app",
+            messagingSenderId: "902157230634",
+            appId: "1:902157230634:web:47b60c34e1d9ef05529953"
         };
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
@@ -962,100 +982,6 @@
             catch (e) { return amount.toFixed(2) + ' ' + currencyCode; }
         }
 
-        // --- HOLIDAYS ---
-        function checkHolidayAutoStatus(targetDateStr) {
-            if(!targetDateStr) return;
-            const toggle = document.getElementById('holidayModeToggle');
-            const text = document.getElementById('holidayModeText');
-            
-            const targetTime = new Date(targetDateStr).getTime();
-            let isAutoHoliday = false;
-
-            for(let h of holidays) {
-                if (targetTime >= new Date(h.start).getTime() && targetTime <= new Date(h.end).getTime()) {
-                    isAutoHoliday = true; break;
-                }
-            }
-
-            if(isAutoHoliday) {
-                toggle.checked = true; toggle.disabled = true;
-                text.innerHTML = "🌴 Holiday Detected (40h Limit)"; text.style.color = "var(--success)";
-            } else {
-                toggle.disabled = false; toggle.checked = localStorage.getItem('suzukoHolidayModeManual') === 'true';
-                text.innerHTML = "🌴 Holiday Mode Override"; text.style.color = "var(--text)";
-            }
-        }
-
-        function getWeeklyLimit(dateStr) { checkHolidayAutoStatus(dateStr); return document.getElementById('holidayModeToggle').checked ? 40 : 28; }
-
-        document.getElementById('holidayModeToggle').addEventListener('change', (e) => {
-            if(!e.target.disabled) { localStorage.setItem('suzukoHolidayModeManual', e.target.checked); }
-            updateAllViews();
-        });
-
-        window.openHolidayModal = function() { renderHolidays(); document.getElementById('holidayModal').classList.add('show'); }
-        window.closeHolidayModal = function() { document.getElementById('holidayModal').classList.remove('show'); updateAllViews(); }
-
-        document.getElementById('holidayForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const name = document.getElementById('holName').value; const start = document.getElementById('holStart').value; const end = document.getElementById('holEnd').value;
-            if(getDayNumber(end) < getDayNumber(start)) return alert("End date must be after start date.");
-            
-            holidays.push({ id: generateId(), name, start, end });
-            localStorage.setItem('suzukoHolidays', JSON.stringify(holidays)); syncToCloud();
-            
-            document.getElementById('holName').value = ''; document.getElementById('holStart').value = ''; document.getElementById('holEnd').value = '';
-            triggerDateSync(); renderHolidays(); updateAllViews();
-        });
-
-        function renderHolidays() {
-            const container = document.getElementById('holidayListContainer'); container.innerHTML = '';
-            if(holidays.length === 0) { container.innerHTML = '<div class="text-muted" style="text-align:center; padding: 1rem;">No holidays configured.</div>'; return; }
-            holidays.sort((a,b) => a.start.localeCompare(b.start)).forEach(h => {
-                container.innerHTML += `
-                    <div class="holiday-item">
-                        <div>
-                            <div style="font-weight: 600;">${h.name}</div>
-                            <div style="font-size: 0.8rem; color: var(--text-light);">${formatDateDisplay(h.start)} to ${formatDateDisplay(h.end)}</div>
-                        </div>
-                        <div style="display:flex; gap:0.5rem;">
-                            <button type="button" class="btn-action" onclick="openEditHolidayModal('${h.id}')" style="opacity: 1;">✎ Edit</button>
-                            <button type="button" class="btn-action btn-delete" onclick="deleteHoliday('${h.id}')" style="opacity: 1;">✕</button>
-                        </div>
-                    </div>
-                `;
-            });
-        }
-        window.deleteHoliday = function(id) { 
-            holidays = holidays.filter(h => h.id !== id); 
-            localStorage.setItem('suzukoHolidays', JSON.stringify(holidays)); syncToCloud();
-            renderHolidays(); updateAllViews();
-        }
-
-        window.openEditHolidayModal = function(id) {
-            const hol = holidays.find(h => h.id === id); if(!hol) return;
-            document.getElementById('editHolId').value = hol.id; document.getElementById('editHolName').value = hol.name;
-            document.getElementById('editHolStart').value = hol.start; document.getElementById('editHolEnd').value = hol.end;
-            document.getElementById('editHolidayModal').classList.add('show'); triggerDateSync();
-        };
-
-        window.closeEditHolidayModal = function() { document.getElementById('editHolidayModal').classList.remove('show'); };
-
-        document.getElementById('editHolidayForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const id = document.getElementById('editHolId').value; const name = document.getElementById('editHolName').value;
-            const start = document.getElementById('editHolStart').value; const end = document.getElementById('editHolEnd').value;
-            if(getDayNumber(end) < getDayNumber(start)) return alert("End date must be after start date.");
-
-            const index = holidays.findIndex(h => h.id === id);
-            if(index !== -1) {
-                holidays[index] = { id, name, start, end };
-                localStorage.setItem('suzukoHolidays', JSON.stringify(holidays)); syncToCloud();
-                renderHolidays(); triggerDateSync(); updateAllViews(); closeEditHolidayModal();
-            }
-        });
-
-        // --- MATH ---
         function calculateShiftDetails(startStr, endStr, breakStr, wage, applyLateNight, tCost, tSubsidy, bonusAmt) {
             if (!startStr || !endStr) return null;
             let [sh, sm] = startStr.split(':').map(Number); let [eh, em] = endStr.split(':').map(Number);
@@ -1088,6 +1014,105 @@
             return { totalHours: totalPaidHours, regHours, lateHours, breakHours, breakStr, totalWage, regEarned, lateEarned, transportCost, transportSubsidy, bonusAmount, netIncome, actualHourlyWage, isOvernight };
         }
 
+        // --- HOLIDAYS ---
+        function checkHolidayAutoStatus(targetDateStr) {
+            if(!targetDateStr) return;
+            const toggle = document.getElementById('holidayModeToggle');
+            const text = document.getElementById('holidayModeText');
+            
+            const targetTime = new Date(targetDateStr).getTime();
+            let isAutoHoliday = false;
+
+            for(let h of holidays) {
+                if (targetTime >= new Date(h.start).getTime() && targetTime <= new Date(h.end).getTime()) {
+                    isAutoHoliday = true; break;
+                }
+            }
+
+            if(isAutoHoliday) {
+                toggle.checked = true; toggle.disabled = true;
+                text.innerHTML = "🌴 Holiday Detected (40h)"; text.style.color = "var(--success)";
+            } else {
+                toggle.disabled = false; toggle.checked = localStorage.getItem('suzukoHolidayModeManual') === 'true';
+                text.innerHTML = "🌴 Holiday Mode Override"; text.style.color = "var(--text)";
+            }
+        }
+
+        function getWeeklyLimit(dateStr) { checkHolidayAutoStatus(dateStr); return document.getElementById('holidayModeToggle').checked ? 40 : 28; }
+
+        document.getElementById('holidayModeToggle').addEventListener('change', (e) => {
+            if(!e.target.disabled) { localStorage.setItem('suzukoHolidayModeManual', e.target.checked); }
+            updateAllViews();
+        });
+
+        window.openHolidayModal = function() { renderHolidays(); document.getElementById('holidayModal').classList.add('show'); }
+        window.closeHolidayModal = function() { document.getElementById('holidayModal').classList.remove('show'); updateAllViews(); }
+
+        document.getElementById('holidayForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const name = document.getElementById('holName').value; const start = document.getElementById('holStart').value; const end = document.getElementById('holEnd').value;
+            if(getDayNumber(end) < getDayNumber(start)) return alert("End date must be after start date.");
+            
+            holidays.push({ id: generateId(), name, start, end });
+            localStorage.setItem('suzukoHolidays', JSON.stringify(holidays)); syncToCloud();
+            
+            document.getElementById('holName').value = ''; document.getElementById('holStart').value = ''; document.getElementById('holEnd').value = '';
+            triggerDateSync(); renderHolidays(); updateAllViews();
+        });
+
+        function renderHolidays() {
+            const container = document.getElementById('holidayListContainer'); container.innerHTML = '';
+            if(holidays.length === 0) { container.innerHTML = '<div class="text-muted" style="text-align:center; padding: 1rem;">No holidays configured.</div>'; return; }
+            
+            const fragment = document.createDocumentFragment();
+            holidays.sort((a,b) => a.start.localeCompare(b.start)).forEach(h => {
+                let div = document.createElement('div');
+                div.className = "holiday-item";
+                div.innerHTML = `
+                    <div>
+                        <div style="font-weight: 600;">${h.name}</div>
+                        <div style="font-size: 0.8rem; color: var(--text-light);">${formatDateDisplay(h.start)} to ${formatDateDisplay(h.end)}</div>
+                    </div>
+                    <div style="display:flex; gap:0.5rem;">
+                        <button type="button" class="btn-action" onclick="openEditHolidayModal('${h.id}')" style="opacity: 1;">✎ Edit</button>
+                        <button type="button" class="btn-action btn-delete" onclick="deleteHoliday('${h.id}')" style="opacity: 1;">✕</button>
+                    </div>
+                `;
+                fragment.appendChild(div);
+            });
+            container.appendChild(fragment);
+        }
+
+        window.deleteHoliday = function(id) { 
+            holidays = holidays.filter(h => h.id !== id); 
+            localStorage.setItem('suzukoHolidays', JSON.stringify(holidays)); syncToCloud();
+            renderHolidays(); updateAllViews();
+        }
+
+        window.openEditHolidayModal = function(id) {
+            const hol = holidays.find(h => h.id === id); if(!hol) return;
+            document.getElementById('editHolId').value = hol.id; document.getElementById('editHolName').value = hol.name;
+            document.getElementById('editHolStart').value = hol.start; document.getElementById('editHolEnd').value = hol.end;
+            document.getElementById('editHolidayModal').classList.add('show'); triggerDateSync();
+        };
+
+        window.closeEditHolidayModal = function() { document.getElementById('editHolidayModal').classList.remove('show'); };
+
+        document.getElementById('editHolidayForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const id = document.getElementById('editHolId').value; const name = document.getElementById('editHolName').value;
+            const start = document.getElementById('editHolStart').value; const end = document.getElementById('editHolEnd').value;
+            if(getDayNumber(end) < getDayNumber(start)) return alert("End date must be after start date.");
+
+            const index = holidays.findIndex(h => h.id === id);
+            if(index !== -1) {
+                holidays[index] = { id, name, start, end };
+                localStorage.setItem('suzukoHolidays', JSON.stringify(holidays)); syncToCloud();
+                renderHolidays(); triggerDateSync(); updateAllViews(); closeEditHolidayModal();
+            }
+        });
+
+        // --- MATH / LIMITS ---
         function getDailyTotal(dateStr, db = records) { return (db[dateStr] || []).reduce((sum, shift) => sum + shift.totalHours, 0); }
         
         function getWindowsData(targetDateStr, db = records) {
@@ -1103,8 +1128,6 @@
             }
             return { windows: windows.reverse(), maxTotal, bottleneckWindow };
         }
-
-        function getRolling7DayTotal(targetDateStr, db = records) { return getWindowsData(targetDateStr, db).maxTotal; }
 
         function validateAddition(targetDateStr, newHours, db = records) {
             let currentHours = getDailyTotal(targetDateStr, db);
@@ -1142,24 +1165,28 @@
             bar.style.backgroundColor = currentTotal >= weeklyLimit ? 'var(--error)' : (currentTotal >= weeklyLimit - 4 ? 'var(--warning)' : 'var(--success)');
 
             const container = document.getElementById('windowsContainer'); container.innerHTML = '';
+            
+            const fragment = document.createDocumentFragment();
             data.windows.forEach(w => {
                 let pct = Math.min((w.total / weeklyLimit) * 100, 100);
                 let color = w.total >= weeklyLimit ? 'var(--error)' : (w.total >= weeklyLimit - 4 ? 'var(--warning)' : 'var(--success)');
                 let isMax = w.total === data.maxTotal;
                 let bgClass = isMax ? 'background: var(--highlight); padding: 0.5rem; border-radius: 6px; border: 1px solid var(--primary);' : 'padding: 0.25rem 0.5rem;';
                 
-                container.innerHTML += `
-                    <div style="${bgClass}">
-                        <div style="display:flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 0.25rem; color: var(--text-light);">
-                            <span>${formatDateDisplay(w.start)} to ${formatDateDisplay(w.end)} ${isMax ? '<strong style="color:var(--primary);">(Bottleneck)</strong>' : ''}</span>
-                            <span>${w.total.toFixed(1)}h</span>
-                        </div>
-                        <div class="progress-track" style="height: 6px;">
-                            <div class="progress-fill" style="width: ${pct}%; background-color: ${color};"></div>
-                        </div>
+                let div = document.createElement('div');
+                div.style = bgClass;
+                div.innerHTML = `
+                    <div style="display:flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 0.25rem; color: var(--text-light);">
+                        <span>${formatDateDisplay(w.start)} to ${formatDateDisplay(w.end)} ${isMax ? '<strong style="color:var(--primary);">(Bottleneck)</strong>' : ''}</span>
+                        <span>${w.total.toFixed(1)}h</span>
+                    </div>
+                    <div class="progress-track" style="height: 6px;">
+                        <div class="progress-fill" style="width: ${pct}%; background-color: ${color};"></div>
                     </div>
                 `;
+                fragment.appendChild(div);
             });
+            container.appendChild(fragment);
         }
 
         function updateSmartAdvice() {
@@ -1204,12 +1231,12 @@
             }
         }
 
-        // --- OPTIMIZER LOGIC ---
         function updateOptimizer() {
             const startDateStr = document.getElementById('workDate').value; if (!startDateStr) return;
             const container = document.getElementById('optimizerGrid'); container.innerHTML = '';
             
             let startNum = getDayNumber(startDateStr); let bestDays = [];
+            const fragment = document.createDocumentFragment();
 
             for (let i = 0; i < 7; i++) {
                 let checkDateStr = getDateString(startNum + i);
@@ -1227,15 +1254,18 @@
 
                 let statusClass = maxCanAdd >= 5 ? 'good' : (maxCanAdd > 0 ? 'warn' : 'bad');
                 
-                container.innerHTML += `
-                    <div class="opt-card">
-                        <div class="opt-day">${dayName}</div>
-                        <div class="opt-date">${dateNum}/${monthNum}</div>
-                        <div class="opt-avail ${statusClass}">+${maxCanAdd.toFixed(1)}h</div>
-                    </div>
+                let card = document.createElement('div');
+                card.className = "opt-card";
+                card.innerHTML = `
+                    <div class="opt-day">${dayName}</div>
+                    <div class="opt-date">${dateNum}/${monthNum}</div>
+                    <div class="opt-avail ${statusClass}">+${maxCanAdd.toFixed(1)}h</div>
                 `;
+                fragment.appendChild(card);
+                
                 if (maxCanAdd > 0) { bestDays.push({ day: dayName, date: `${dateNum}/${monthNum}`, avail: maxCanAdd }); }
             }
+            container.appendChild(fragment);
 
             bestDays.sort((a, b) => b.avail - a.avail);
             const suggestionEl = document.getElementById('optimizerSuggestion');
@@ -1275,6 +1305,84 @@
             document.getElementById('dashWeekHours').textContent = `${wH.toFixed(1)}h`; document.getElementById('dashWeekEarned').textContent = formatSum(wE);
             document.getElementById('dashMonthHours').textContent = `${mH.toFixed(1)}h`; document.getElementById('dashMonthEarned').textContent = formatSum(mE);
             document.getElementById('dashYearHours').textContent = `${yH.toFixed(1)}h`; document.getElementById('dashYearEarned').textContent = formatSum(yE);
+        }
+
+        function updateTable() {
+            const tbody = document.getElementById('logBody'); tbody.innerHTML = '';
+            const filterY = historyFilterYear.value; const filterM = historyFilterMonth.value;
+            const sortedDates = Object.keys(records).sort((a,b) => b.localeCompare(a));
+            
+            let hasData = false; let totalHours = 0; let netByCur = {};
+            const fragment = document.createDocumentFragment();
+
+            sortedDates.forEach(date => {
+                if (filterY && !date.startsWith(filterY)) return;
+                if (filterM && date.substring(5, 7) !== filterM) return;
+                if (records[date].length === 0) return;
+                hasData = true;
+
+                records[date].forEach(shift => {
+                    totalHours += shift.totalHours;
+                    const netIncome = shift.netIncome ?? shift.totalEarned ?? (shift.totalHours * (shift.wage || 0));
+                    const totalWage = shift.totalWage ?? shift.totalEarned ?? (shift.totalHours * (shift.wage || 0));
+                    const tCost = shift.transportCost || 0; const tSubsidy = shift.transportSubsidy || 0;
+                    const bAmt = shift.bonusAmount || 0; const bTitle = shift.bonusTitle || 'Bonus';
+                    const breakStr = shift.breakStr || '00:00';
+                    const actualHourly = shift.actualHourlyWage || (shift.totalHours > 0 ? (netIncome / shift.totalHours) : 0);
+
+                    if (netIncome !== 0) netByCur[shift.currency] = (netByCur[shift.currency] || 0) + netIncome;
+
+                    const timeStr = `${shift.start} - ${shift.end}${shift.isOvernight ? ' (+1)' : ''} <br><span style="font-size:0.75rem; color:var(--text-light)">Break: ${breakStr}</span>`;
+                    const wageBaseStr = formatCurrency(shift.wage, shift.currency) + '/hr';
+                    const netEarnedStr = formatCurrency(netIncome, shift.currency);
+
+                    const trMain = document.createElement('tr'); trMain.className = 'main-row'; trMain.id = `main-${shift.id}`;
+                    trMain.onclick = (e) => toggleRow(shift.id, e);
+                    trMain.innerHTML = `
+                        <td style="font-weight: 500;"><span class="expand-icon">▶</span>${formatDateDisplay(date)}</td>
+                        <td>${shift.name}</td> <td style="font-family: monospace;">${timeStr}</td> <td>${shift.totalHours}h</td>
+                        <td style="font-weight: 600; color: var(--success);">${netEarnedStr}</td>
+                        <td>
+                            <div style="display:flex; gap:0.5rem;">
+                                <button class="btn-action" onclick="openEditModal('${date}', '${shift.id}', event)">✎</button>
+                                <button class="btn-action btn-delete" onclick="deleteShift('${date}', '${shift.id}')">✕</button>
+                            </div>
+                        </td>
+                    `;
+                    fragment.appendChild(trMain);
+
+                    const trDetail = document.createElement('tr'); trDetail.className = 'details-row'; trDetail.id = `detail-${shift.id}`; trDetail.style.display = 'none';
+                    let breakdownHTML = `<div class="details-content">
+                        <strong>Shift Breakdown (Base: ${wageBaseStr})</strong><br>
+                        <div class="details-grid"> 
+                            <div>Paid Regular Hours: ${shift.regHours || shift.totalHours}h</div> 
+                            <div>Regular Earned: ${formatCurrency(shift.regEarned || totalWage, shift.currency)}</div> 
+                        </div>`;
+                    if(shift.lateHours > 0) breakdownHTML += `<div class="details-grid" style="margin-top: 0.5rem; color: var(--warning);"> <div>Paid Late-Night (22:00-05:00): ${shift.lateHours}h</div> <div>Late Earned (+25%): ${formatCurrency(shift.lateEarned, shift.currency)}</div> </div>`;
+                    
+                    let bonusHTML = bAmt > 0 ? `<div class="text-gain"><strong>${bTitle}:</strong> <br>+${formatCurrency(bAmt, shift.currency)}</div>` : '';
+                    
+                    breakdownHTML += `
+                        <div class="details-grid-stats">
+                            <div><strong>Total Wage:</strong> <br>${formatCurrency(totalWage, shift.currency)}</div>
+                            ${bonusHTML}
+                            <div class="${tCost > 0 ? 'text-loss' : ''}"><strong>Transport Cost:</strong> <br>-${formatCurrency(tCost, shift.currency)}</div>
+                            <div class="${tSubsidy > 0 ? 'text-gain' : ''}"><strong>Transport Subsidy:</strong> <br>+${formatCurrency(tSubsidy, shift.currency)}</div>
+                            <div style="color: var(--primary);"><strong>Actual Hourly Wage:</strong> <br>${formatCurrency(actualHourly, shift.currency)}/hr</div>
+                        </div></div>`;
+                    trDetail.innerHTML = `<td colspan="6" style="padding:0; border-bottom: none;">${breakdownHTML}</td>`; 
+                    fragment.appendChild(trDetail);
+                });
+            });
+
+            if (!hasData) tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 2rem;" class="text-muted">No shifts found for this criteria.</td></tr>`;
+            else {
+                tbody.appendChild(fragment);
+                let earningsSummary = Object.keys(netByCur).map(cur => formatCurrency(netByCur[cur], cur)).join(' + ') || '-';
+                const sumRow = document.createElement('tr'); sumRow.className = 'summary-row';
+                sumRow.innerHTML = `<td colspan="3" style="text-align: right;">Total Net Income for View:</td> <td>${totalHours.toFixed(2)}h</td> <td colspan="2" style="color: var(--primary); font-weight: 800;">${earningsSummary}</td>`;
+                tbody.appendChild(sumRow);
+            }
         }
 
         function updateAllViews() { updateTable(); updateDashboard(); updateProgressBar(); updateSmartAdvice(); updateOptimizer(); }
@@ -1323,6 +1431,7 @@
         function renderPresets() {
             const container = document.getElementById('presetList'); container.innerHTML = '';
             if(presets.length === 0) return;
+            const fragment = document.createDocumentFragment();
             presets.forEach((p, index) => {
                 const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'preset-chip';
                 btn.textContent = `${p.name} (${p.start}-${p.end})`;
@@ -1335,8 +1444,9 @@
                     updateHoursInput();
                 };
                 btn.oncontextmenu = (e) => { e.preventDefault(); if(confirm(`Delete preset "${p.name}"?`)) { presets.splice(index, 1); localStorage.setItem('suzukoWorkPresets', JSON.stringify(presets)); syncToCloud(); renderPresets(); } };
-                container.appendChild(btn);
+                fragment.appendChild(btn);
             });
+            container.appendChild(fragment);
         }
 
         document.getElementById('btnSavePreset').addEventListener('click', () => {
@@ -1379,141 +1489,6 @@
                 tempRecords[targetDateStr].push({ ...shift, id: generateId() });
             }
             if(success) { records = tempRecords; saveRecords(); showMessage("Successfully pasted range!", false); }
-        });
-
-        // ============================================================
-        // TABLE & EDIT MODAL
-        // ============================================================
-        const historyFilterYear = document.getElementById('historyFilterYear');
-        const historyFilterMonth = document.getElementById('historyFilterMonth');
-        historyFilterYear.addEventListener('change', updateTable);
-        historyFilterMonth.addEventListener('change', updateTable);
-        
-        document.getElementById('btnClearFilter').addEventListener('click', () => { 
-            historyFilterYear.value = new Date().getFullYear(); historyFilterMonth.value = ''; updateTable(); 
-        });
-
-        window.toggleRow = function(id, event) {
-            if(event.target.tagName === 'BUTTON') return; 
-            const detailRow = document.getElementById(`detail-${id}`); const mainRow = document.getElementById(`main-${id}`);
-            if(detailRow.style.display === 'none') { detailRow.style.display = 'table-row'; mainRow.classList.add('expanded'); } 
-            else { detailRow.style.display = 'none'; mainRow.classList.remove('expanded'); }
-        };
-
-        function updateTable() {
-            const tbody = document.getElementById('logBody'); tbody.innerHTML = '';
-            const filterY = historyFilterYear.value; const filterM = historyFilterMonth.value;
-            const sortedDates = Object.keys(records).sort((a,b) => b.localeCompare(a));
-            
-            let hasData = false; let totalHours = 0; let netByCur = {};
-
-            sortedDates.forEach(date => {
-                if (filterY && !date.startsWith(filterY)) return;
-                if (filterM && date.substring(5, 7) !== filterM) return;
-                if (records[date].length === 0) return;
-                hasData = true;
-
-                records[date].forEach(shift => {
-                    totalHours += shift.totalHours;
-                    const netIncome = shift.netIncome ?? shift.totalEarned ?? (shift.totalHours * (shift.wage || 0));
-                    const totalWage = shift.totalWage ?? shift.totalEarned ?? (shift.totalHours * (shift.wage || 0));
-                    const tCost = shift.transportCost || 0; const tSubsidy = shift.transportSubsidy || 0;
-                    const bAmt = shift.bonusAmount || 0; const bTitle = shift.bonusTitle || 'Bonus';
-                    const breakStr = shift.breakStr || '00:00';
-                    const actualHourly = shift.actualHourlyWage || (shift.totalHours > 0 ? (netIncome / shift.totalHours) : 0);
-
-                    if (netIncome !== 0) netByCur[shift.currency] = (netByCur[shift.currency] || 0) + netIncome;
-
-                    const timeStr = `${shift.start} - ${shift.end}${shift.isOvernight ? ' (+1)' : ''} <br><span style="font-size:0.75rem; color:var(--text-light)">Break: ${breakStr}</span>`;
-                    const wageBaseStr = formatCurrency(shift.wage, shift.currency) + '/hr';
-                    const netEarnedStr = formatCurrency(netIncome, shift.currency);
-
-                    const trMain = document.createElement('tr'); trMain.className = 'main-row'; trMain.id = `main-${shift.id}`;
-                    trMain.onclick = (e) => toggleRow(shift.id, e);
-                    trMain.innerHTML = `
-                        <td style="font-weight: 500;"><span class="expand-icon">▶</span>${formatDateDisplay(date)}</td>
-                        <td>${shift.name}</td> <td style="font-family: monospace;">${timeStr}</td> <td>${shift.totalHours}h</td>
-                        <td style="font-weight: 600; color: var(--success);">${netEarnedStr}</td>
-                        <td>
-                            <div style="display:flex; gap:0.5rem;">
-                                <button class="btn-action" onclick="openEditModal('${date}', '${shift.id}', event)">✎</button>
-                                <button class="btn-action btn-delete" onclick="deleteShift('${date}', '${shift.id}')">✕</button>
-                            </div>
-                        </td>
-                    `;
-                    tbody.appendChild(trMain);
-
-                    const trDetail = document.createElement('tr'); trDetail.className = 'details-row'; trDetail.id = `detail-${shift.id}`; trDetail.style.display = 'none';
-                    let breakdownHTML = `<div class="details-content">
-                        <strong>Shift Breakdown (Base: ${wageBaseStr})</strong><br>
-                        <div class="details-grid"> 
-                            <div>Paid Regular Hours: ${shift.regHours || shift.totalHours}h</div> 
-                            <div>Regular Earned: ${formatCurrency(shift.regEarned || totalWage, shift.currency)}</div> 
-                        </div>`;
-                    if(shift.lateHours > 0) breakdownHTML += `<div class="details-grid" style="margin-top: 0.5rem; color: var(--warning);"> <div>Paid Late-Night (22:00-05:00): ${shift.lateHours}h</div> <div>Late Earned (+25%): ${formatCurrency(shift.lateEarned, shift.currency)}</div> </div>`;
-                    
-                    let bonusHTML = bAmt > 0 ? `<div class="text-gain"><strong>${bTitle}:</strong> <br>+${formatCurrency(bAmt, shift.currency)}</div>` : '';
-                    
-                    breakdownHTML += `
-                        <div class="details-grid-stats">
-                            <div><strong>Total Wage:</strong> <br>${formatCurrency(totalWage, shift.currency)}</div>
-                            ${bonusHTML}
-                            <div class="${tCost > 0 ? 'text-loss' : ''}"><strong>Transport Cost:</strong> <br>-${formatCurrency(tCost, shift.currency)}</div>
-                            <div class="${tSubsidy > 0 ? 'text-gain' : ''}"><strong>Transport Subsidy:</strong> <br>+${formatCurrency(tSubsidy, shift.currency)}</div>
-                            <div style="color: var(--primary);"><strong>Actual Hourly Wage:</strong> <br>${formatCurrency(actualHourly, shift.currency)}/hr</div>
-                        </div></div>`;
-                    trDetail.innerHTML = `<td colspan="6" style="padding:0; border-bottom: none;">${breakdownHTML}</td>`; tbody.appendChild(trDetail);
-                });
-            });
-
-            if (!hasData) tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 2rem;" class="text-muted">No shifts found for this criteria.</td></tr>`;
-            else {
-                let earningsSummary = Object.keys(netByCur).map(cur => formatCurrency(netByCur[cur], cur)).join(' + ') || '-';
-                const sumRow = document.createElement('tr'); sumRow.className = 'summary-row';
-                sumRow.innerHTML = `<td colspan="3" style="text-align: right;">Total Net Income for View:</td> <td>${totalHours.toFixed(2)}h</td> <td colspan="2" style="color: var(--primary); font-weight: 800;">${earningsSummary}</td>`;
-                tbody.appendChild(sumRow);
-            }
-        }
-
-        window.deleteShift = function(date, id) { records[date] = records[date].filter(s => s.id !== id); if(records[date].length === 0) delete records[date]; saveRecords(); showMessage("Shift deleted.", false); };
-
-        window.openEditModal = function(date, id, event) {
-            event.stopPropagation(); const shift = records[date].find(s => s.id === id); if(!shift) return;
-            document.getElementById('editOriginalDate').value = date; document.getElementById('editShiftId').value = id;
-            document.getElementById('editDate').value = date; document.getElementById('editName').value = shift.name;
-            document.getElementById('editStartTime').value = shift.start; document.getElementById('editEndTime').value = shift.end; document.getElementById('editBreakTime').value = shift.breakStr || '00:00';
-            document.getElementById('editWage').value = shift.wage || ''; document.getElementById('editCurrency').value = shift.currency || 'JPY';
-            document.getElementById('editLateNight').checked = shift.applyLateNight || false; 
-            
-            document.getElementById('editBonusTitle').value = shift.bonusTitle || ''; document.getElementById('editBonusAmount').value = shift.bonusAmount || '';
-            document.getElementById('editCost').value = shift.transportCost || ''; document.getElementById('editSubsidy').value = shift.transportSubsidy || '';
-            
-            document.getElementById('editModal').classList.add('show'); triggerDateSync();
-        }
-
-        function closeEditModal() { document.getElementById('editModal').classList.remove('show'); }
-        function updateEditHoursInput() {}
-
-        document.getElementById('editForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const oldDate = document.getElementById('editOriginalDate').value; const id = document.getElementById('editShiftId').value;
-            const newDate = document.getElementById('editDate').value; const name = document.getElementById('editName').value;
-            const start = document.getElementById('editStartTime').value; const end = document.getElementById('editEndTime').value; const breakStr = document.getElementById('editBreakTime').value || "00:00";
-            const wage = parseFloat(document.getElementById('editWage').value) || 0; const currency = document.getElementById('editCurrency').value;
-            const applyLateNight = document.getElementById('editLateNight').checked; 
-            const bonusTitle = document.getElementById('editBonusTitle').value; const bonusAmt = parseFloat(document.getElementById('editBonusAmount').value) || 0;
-            const tCost = parseFloat(document.getElementById('editCost').value) || 0; const tSubsidy = parseFloat(document.getElementById('editSubsidy').value) || 0;
-
-            const details = calculateShiftDetails(start, end, breakStr, wage, applyLateNight, tCost, tSubsidy, bonusAmt);
-            if (!details || details.totalHours <= 0) return showMessage("Please select valid times.", true);
-
-            const oldShiftIndex = records[oldDate].findIndex(s => s.id === id); const oldShiftBackup = records[oldDate][oldShiftIndex];
-            records[oldDate].splice(oldShiftIndex, 1);
-            const validation = validateAddition(newDate, details.totalHours);
-            if (!validation.valid) { records[oldDate].splice(oldShiftIndex, 0, oldShiftBackup); return showMessage("Edit Failed: " + validation.msg, true); }
-            
-            if (!records[newDate]) records[newDate] = []; records[newDate].push({ id, name, start, end, breakStr, wage, currency, applyLateNight, bonusTitle, ...details });
-            if(records[oldDate].length === 0) delete records[oldDate]; saveRecords(); closeEditModal(); showMessage(`Shift successfully updated!`, false);
         });
 
         window.exportData = function() {
