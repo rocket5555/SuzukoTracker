@@ -120,9 +120,9 @@
         .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
         .details-grid-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px dashed var(--border); }
         
-        .btn-action { background: transparent; border: none; padding: 0.25rem 0.5rem; font-size: 0.85rem; border-radius: 6px; color: var(--text-light); opacity: 0.5; transition: all 0.2s ease; }
-        .btn-action:hover { opacity: 1; background: var(--border-light); color: var(--text); }
-        .btn-delete:hover { color: var(--error); background: var(--error-bg); }
+        .btn-action { background: transparent; border: 1px solid transparent; padding: 0.3rem 0.6rem; font-size: 0.85rem; border-radius: 6px; color: var(--text-light); opacity: 0.7; transition: all 0.2s ease; }
+        .btn-action:hover { opacity: 1; background: var(--border-light); color: var(--text); border-color: var(--border); }
+        .btn-delete:hover { color: var(--error); background: var(--error-bg); border-color: rgba(239, 68, 68, 0.3); }
         
         .summary-row { font-weight: 700; background-color: var(--border-light); border-top: 2px solid var(--border); }
         .expand-icon { display: inline-block; transition: transform 0.2s; margin-right: 0.5rem; color: var(--primary); }
@@ -234,9 +234,7 @@
     </div>
 
     <div class="header">
-        <h1>
-            Suzuko<span style="color: var(--primary); font-weight: 300;">Tracker</span>
-        </h1>
+        <h1>Suzuko<span style="color: var(--primary); font-weight: 300;">Tracker</span></h1>
         <div class="user-nav">
             <span id="userDisplayName">Not logged in</span>
             <button id="btnSignOut" class="btn-text" style="font-size: 0.8rem; color: var(--error);">Sign Out</button>
@@ -1117,6 +1115,8 @@
             return { windows: windows.reverse(), maxTotal, bottleneckWindow };
         }
 
+        function getRolling7DayTotal(targetDateStr, db = records) { return getWindowsData(targetDateStr, db).maxTotal; }
+
         function validateAddition(targetDateStr, newHours, db = records) {
             let currentHours = getDailyTotal(targetDateStr, db);
             if (currentHours + newHours > 8) return { valid: false, msg: `Daily limit exceeded on ${formatDateDisplay(targetDateStr)}. Max 8h allowed per day.` };
@@ -1127,12 +1127,6 @@
                 return { valid: false, msg: `${weeklyLimit}-hour limit exceeded! Adding ${newHours}h puts your bottleneck window (${formatDateDisplay(data.bottleneckWindow.start)} to ${formatDateDisplay(data.bottleneckWindow.end)}) at ${(data.maxTotal + newHours).toFixed(1)}h.` };
             }
             return { valid: true };
-        }
-
-        function saveRecords() { 
-            localStorage.setItem('suzukoWorkRecords', JSON.stringify(records)); 
-            updateAllViews();
-            syncToCloud();
         }
 
         let windowsVisible = false;
@@ -1295,6 +1289,14 @@
             document.getElementById('dashYearHours').textContent = `${yH.toFixed(1)}h`; document.getElementById('dashYearEarned').textContent = formatSum(yE);
         }
 
+        window.toggleRow = function(id, event) {
+            if (event && event.target.closest('button')) return; 
+            const detailRow = document.getElementById(`detail-${id}`); const mainRow = document.getElementById(`main-${id}`);
+            if (!detailRow || !mainRow) return;
+            if(detailRow.style.display === 'none') { detailRow.style.display = 'table-row'; mainRow.classList.add('expanded'); } 
+            else { detailRow.style.display = 'none'; mainRow.classList.remove('expanded'); }
+        };
+
         function updateTable() {
             const tbody = document.getElementById('logBody'); tbody.innerHTML = '';
             const filterY = historyFilterYear.value; const filterM = historyFilterMonth.value;
@@ -1302,6 +1304,7 @@
             
             let hasData = false; let totalHours = 0; let netByCur = {};
             const fragment = document.createDocumentFragment();
+            let needsPatchSave = false;
 
             sortedDates.forEach(date => {
                 if (filterY && !date.startsWith(filterY)) return;
@@ -1310,6 +1313,12 @@
                 hasData = true;
 
                 records[date].forEach(shift => {
+                    // SILENTLY PATCH LEGACY SHIFTS WITHOUT IDs
+                    if (!shift.id) {
+                        shift.id = generateId();
+                        needsPatchSave = true;
+                    }
+
                     totalHours += shift.totalHours;
                     const netIncome = shift.netIncome ?? shift.totalEarned ?? (shift.totalHours * (shift.wage || 0));
                     const totalWage = shift.totalWage ?? shift.totalEarned ?? (shift.totalHours * (shift.wage || 0));
@@ -1332,8 +1341,8 @@
                         <td style="font-weight: 600; color: var(--success);">${netEarnedStr}</td>
                         <td>
                             <div style="display:flex; gap:0.5rem;">
-                                <button class="btn-action" onclick="openEditModal('${date}', '${shift.id}', event)">✎</button>
-                                <button class="btn-action btn-delete" onclick="deleteShift('${date}', '${shift.id}')">✕</button>
+                                <button type="button" class="btn-action" onclick="openEditModal('${date}', '${shift.id}', event)">✎</button>
+                                <button type="button" class="btn-action btn-delete" onclick="deleteShift('${date}', '${shift.id}', event)">✕</button>
                             </div>
                         </td>
                     `;
@@ -1371,6 +1380,12 @@
                 sumRow.innerHTML = `<td colspan="3" style="text-align: right;">Total Net Income for View:</td> <td>${totalHours.toFixed(2)}h</td> <td colspan="2" style="color: var(--primary); font-weight: 800;">${earningsSummary}</td>`;
                 tbody.appendChild(sumRow);
             }
+
+            // If we found legacy shifts without IDs, save them so we don't have to patch them again!
+            if (needsPatchSave) {
+                localStorage.setItem('suzukoWorkRecords', JSON.stringify(records));
+                syncToCloud();
+            }
         }
 
         function updateAllViews() { updateTable(); updateDashboard(); updateProgressBar(); updateSmartAdvice(); updateOptimizer(); }
@@ -1384,6 +1399,56 @@
             const res = calculateShiftDetails(startInput, endInput, breakInput, 0, false, 0, 0, 0);
             document.getElementById('calcHours').value = res ? res.totalHours : '';
         }
+
+        window.deleteShift = function(date, id, event) { 
+            if(event) event.stopPropagation(); 
+            if(confirm("Are you sure you want to delete this shift?")) {
+                records[date] = records[date].filter(s => s.id !== id); 
+                if(records[date].length === 0) delete records[date]; 
+                saveRecords(); 
+                showMessage("Shift deleted.", false); 
+            }
+        };
+
+        window.openEditModal = function(date, id, event) {
+            if(event) event.stopPropagation(); 
+            const shift = records[date].find(s => s.id === id); if(!shift) return;
+            
+            document.getElementById('editOriginalDate').value = date; document.getElementById('editShiftId').value = id;
+            document.getElementById('editDate').value = date; document.getElementById('editName').value = shift.name;
+            document.getElementById('editStartTime').value = shift.start; document.getElementById('editEndTime').value = shift.end; document.getElementById('editBreakTime').value = shift.breakStr || '00:00';
+            document.getElementById('editWage').value = shift.wage || ''; document.getElementById('editCurrency').value = shift.currency || 'JPY';
+            document.getElementById('editLateNight').checked = shift.applyLateNight || false; 
+            
+            document.getElementById('editBonusTitle').value = shift.bonusTitle || ''; document.getElementById('editBonusAmount').value = shift.bonusAmount || '';
+            document.getElementById('editCost').value = shift.transportCost || ''; document.getElementById('editSubsidy').value = shift.transportSubsidy || '';
+            
+            document.getElementById('editModal').classList.add('show'); triggerDateSync();
+        }
+
+        window.closeEditModal = function() { document.getElementById('editModal').classList.remove('show'); }
+        
+        document.getElementById('editForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const oldDate = document.getElementById('editOriginalDate').value; const id = document.getElementById('editShiftId').value;
+            const newDate = document.getElementById('editDate').value; const name = document.getElementById('editName').value;
+            const start = document.getElementById('editStartTime').value; const end = document.getElementById('editEndTime').value; const breakStr = document.getElementById('editBreakTime').value || "00:00";
+            const wage = parseFloat(document.getElementById('editWage').value) || 0; const currency = document.getElementById('editCurrency').value;
+            const applyLateNight = document.getElementById('editLateNight').checked; 
+            const bonusTitle = document.getElementById('editBonusTitle').value; const bonusAmt = parseFloat(document.getElementById('editBonusAmount').value) || 0;
+            const tCost = parseFloat(document.getElementById('editCost').value) || 0; const tSubsidy = parseFloat(document.getElementById('editSubsidy').value) || 0;
+
+            const details = calculateShiftDetails(start, end, breakStr, wage, applyLateNight, tCost, tSubsidy, bonusAmt);
+            if (!details || details.totalHours <= 0) return showMessage("Please select valid times.", true);
+
+            const oldShiftIndex = records[oldDate].findIndex(s => s.id === id); const oldShiftBackup = records[oldDate][oldShiftIndex];
+            records[oldDate].splice(oldShiftIndex, 1);
+            const validation = validateAddition(newDate, details.totalHours);
+            if (!validation.valid) { records[oldDate].splice(oldShiftIndex, 0, oldShiftBackup); return showMessage("Edit Failed: " + validation.msg, true); }
+            
+            if (!records[newDate]) records[newDate] = []; records[newDate].push({ id, name, start, end, breakStr, wage, currency, applyLateNight, bonusTitle, ...details });
+            if(records[oldDate].length === 0) delete records[oldDate]; saveRecords(); closeEditModal(); showMessage(`Shift successfully updated!`, false);
+        });
 
         document.getElementById('workForm').addEventListener('submit', function(e) {
             e.preventDefault();
@@ -1502,8 +1567,6 @@
                     csvContent += row.join(",") + "\n";
                 });
             });
-
-            // \uFEFF is the UTF-8 BOM to ensure Excel reads Japanese characters correctly
             const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' }); 
             const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
             a.download = `SuzukoTracker_Export_${new Date().toISOString().split('T')[0]}.csv`; a.click();
@@ -1519,6 +1582,12 @@
                 } catch (err) { showMessage("Invalid file format.", true); }
             }; reader.readAsText(file); event.target.value = ''; 
         };
+
+        const historyFilterYear = document.getElementById('historyFilterYear');
+        const historyFilterMonth = document.getElementById('historyFilterMonth');
+        historyFilterYear.addEventListener('change', updateTable);
+        historyFilterMonth.addEventListener('change', updateTable);
+        document.getElementById('btnClearFilter').addEventListener('click', () => { historyFilterYear.value = new Date().getFullYear(); historyFilterMonth.value = ''; updateTable(); });
 
         const today = new Date(); const todayStr = today.toISOString().split('T')[0];
         document.getElementById('workDate').value = todayStr; document.getElementById('copyStart').value = todayStr; document.getElementById('copyEnd').value = todayStr;
