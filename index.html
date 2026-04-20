@@ -120,7 +120,7 @@
         .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
         .details-grid-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px dashed var(--border); }
         
-        .btn-action { background: transparent; border: 1px solid transparent; padding: 0.3rem 0.6rem; font-size: 0.85rem; border-radius: 6px; color: var(--text-light); opacity: 0.7; transition: all 0.2s ease; }
+        .btn-action { background: transparent; border: 1px solid transparent; padding: 0.3rem 0.6rem; font-size: 0.85rem; border-radius: 6px; color: var(--text-light); opacity: 0.7; transition: all 0.2s ease; cursor: pointer; }
         .btn-action:hover { opacity: 1; background: var(--border-light); color: var(--text); border-color: var(--border); }
         .btn-delete:hover { color: var(--error); background: var(--error-bg); border-color: rgba(239, 68, 68, 0.3); }
         
@@ -689,6 +689,7 @@
             document.getElementById('userDisplayName').textContent = 'Guest Mode';
             document.getElementById('btnSignOut').textContent = 'Sign In / Register';
             document.getElementById('btnSignOut').style.color = 'var(--primary)';
+            sanitizeData(); // Secure local data
             updateAllViews(); 
         });
 
@@ -803,9 +804,11 @@
                 } else {
                     syncToCloud(); 
                 }
+                sanitizeData(); // Fix any missing legacy IDs from cloud data
                 triggerDateSync(); renderPresets(); updateAllViews();
             } catch (e) {
                 console.error("Cloud fetch error", e);
+                sanitizeData();
                 updateAllViews();
             }
         }
@@ -968,6 +971,25 @@
             catch (e) { return amount.toFixed(2) + ' ' + currencyCode; }
         }
 
+        // --- LEGACY DATA SANITIZATION ENGINE ---
+        // This function forces every old shift to generate a unique ID so Edit/Delete works permanently
+        function sanitizeData() {
+            if (!records) return;
+            let needsSave = false;
+            Object.keys(records).forEach(date => {
+                records[date].forEach(shift => {
+                    if (!shift.id) {
+                        shift.id = generateId();
+                        needsSave = true;
+                    }
+                });
+            });
+            if (needsSave) {
+                localStorage.setItem('suzukoWorkRecords', JSON.stringify(records));
+                syncToCloud();
+            }
+        }
+
         function calculateShiftDetails(startStr, endStr, breakStr, wage, applyLateNight, tCost, tSubsidy, bonusAmt) {
             if (!startStr || !endStr) return null;
             let [sh, sm] = startStr.split(':').map(Number); let [eh, em] = endStr.split(':').map(Number);
@@ -1127,6 +1149,12 @@
                 return { valid: false, msg: `${weeklyLimit}-hour limit exceeded! Adding ${newHours}h puts your bottleneck window (${formatDateDisplay(data.bottleneckWindow.start)} to ${formatDateDisplay(data.bottleneckWindow.end)}) at ${(data.maxTotal + newHours).toFixed(1)}h.` };
             }
             return { valid: true };
+        }
+
+        function saveRecords() { 
+            localStorage.setItem('suzukoWorkRecords', JSON.stringify(records)); 
+            updateAllViews();
+            syncToCloud();
         }
 
         let windowsVisible = false;
@@ -1304,7 +1332,6 @@
             
             let hasData = false; let totalHours = 0; let netByCur = {};
             const fragment = document.createDocumentFragment();
-            let needsPatchSave = false;
 
             sortedDates.forEach(date => {
                 if (filterY && !date.startsWith(filterY)) return;
@@ -1313,12 +1340,6 @@
                 hasData = true;
 
                 records[date].forEach(shift => {
-                    // SILENTLY PATCH LEGACY SHIFTS WITHOUT IDs
-                    if (!shift.id) {
-                        shift.id = generateId();
-                        needsPatchSave = true;
-                    }
-
                     totalHours += shift.totalHours;
                     const netIncome = shift.netIncome ?? shift.totalEarned ?? (shift.totalHours * (shift.wage || 0));
                     const totalWage = shift.totalWage ?? shift.totalEarned ?? (shift.totalHours * (shift.wage || 0));
@@ -1380,12 +1401,6 @@
                 sumRow.innerHTML = `<td colspan="3" style="text-align: right;">Total Net Income for View:</td> <td>${totalHours.toFixed(2)}h</td> <td colspan="2" style="color: var(--primary); font-weight: 800;">${earningsSummary}</td>`;
                 tbody.appendChild(sumRow);
             }
-
-            // If we found legacy shifts without IDs, save them so we don't have to patch them again!
-            if (needsPatchSave) {
-                localStorage.setItem('suzukoWorkRecords', JSON.stringify(records));
-                syncToCloud();
-            }
         }
 
         function updateAllViews() { updateTable(); updateDashboard(); updateProgressBar(); updateSmartAdvice(); updateOptimizer(); }
@@ -1412,7 +1427,7 @@
 
         window.openEditModal = function(date, id, event) {
             if(event) event.stopPropagation(); 
-            const shift = records[date].find(s => s.id === id); if(!shift) return;
+            const shift = records[date].find(s => s.id === id); if(!shift) { showMessage("Shift data not found.", true); return; }
             
             document.getElementById('editOriginalDate').value = date; document.getElementById('editShiftId').value = id;
             document.getElementById('editDate').value = date; document.getElementById('editName').value = shift.name;
@@ -1441,8 +1456,12 @@
             const details = calculateShiftDetails(start, end, breakStr, wage, applyLateNight, tCost, tSubsidy, bonusAmt);
             if (!details || details.totalHours <= 0) return showMessage("Please select valid times.", true);
 
-            const oldShiftIndex = records[oldDate].findIndex(s => s.id === id); const oldShiftBackup = records[oldDate][oldShiftIndex];
+            const oldShiftIndex = records[oldDate].findIndex(s => s.id === id); 
+            if(oldShiftIndex === -1) return showMessage("Error updating shift.", true);
+
+            const oldShiftBackup = records[oldDate][oldShiftIndex];
             records[oldDate].splice(oldShiftIndex, 1);
+            
             const validation = validateAddition(newDate, details.totalHours);
             if (!validation.valid) { records[oldDate].splice(oldShiftIndex, 0, oldShiftBackup); return showMessage("Edit Failed: " + validation.msg, true); }
             
@@ -1592,6 +1611,9 @@
         const today = new Date(); const todayStr = today.toISOString().split('T')[0];
         document.getElementById('workDate').value = todayStr; document.getElementById('copyStart').value = todayStr; document.getElementById('copyEnd').value = todayStr;
         historyFilterYear.value = today.getFullYear(); historyFilterMonth.value = ""; 
+        
+        // Initial setup for users who bypass auth with Guest Mode natively before interacting
+        sanitizeData();
         triggerDateSync(); renderPresets(); updateAllViews();
     </script>
 </body>
