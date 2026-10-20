@@ -555,8 +555,22 @@
             width: 100%;
         }
 
-        /* CUSTOM DD/MM/YYYY INPUT */
-        input[type="date"] { position: relative; color: transparent !important; }
+        /* CUSTOM DD/MM/YYYY DATE INPUT (FIXED FOR DARK MODE & FULL-BOX CLICK) */
+        input[type="date"] {
+            position: relative;
+            color: transparent !important;
+            cursor: pointer;
+            user-select: none;
+        }
+        input[type="date"]::-webkit-datetime-edit,
+        input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+        input[type="date"]::-webkit-datetime-edit-text,
+        input[type="date"]::-webkit-datetime-edit-month-field,
+        input[type="date"]::-webkit-datetime-edit-day-field,
+        input[type="date"]::-webkit-datetime-edit-year-field {
+            color: transparent !important;
+            background: transparent !important;
+        }
         input[type="date"]::before {
             content: attr(data-date);
             position: absolute;
@@ -570,7 +584,14 @@
             font-weight: 600;
             font-variant-numeric: tabular-nums;
         }
-        input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.85); cursor: pointer; opacity: 0.75; }
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            cursor: pointer;
+            opacity: 0.85;
+            transition: opacity 120ms ease;
+        }
+        input[type="date"]:hover::-webkit-calendar-picker-indicator {
+            opacity: 1;
+        }
 
         /* BUTTONS */
         button {
@@ -1962,6 +1983,14 @@
         const dateStrCache = new Map();
         const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+        function getLocalTodayStr() {
+            const d = new Date();
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+
         function formatDateDisplay(dateString) {
             if (!dateString) return '';
             const parts = dateString.split('-');
@@ -1978,18 +2007,27 @@
                 input.setAttribute('data-date', formatDateDisplay(input.value) || 'DD/MM/YYYY');
             }
         }
+
+        // Make clicking anywhere on any date input open the native calendar picker & sync display
         dateInputsList.forEach(input => {
-            input.addEventListener('input', function() {
+            const syncAttr = function() {
                 this.setAttribute('data-date', formatDateDisplay(this.value) || 'DD/MM/YYYY');
+            };
+            input.addEventListener('input', syncAttr);
+            input.addEventListener('change', syncAttr);
+            input.addEventListener('click', function() {
+                if (typeof this.showPicker === 'function') {
+                    try { this.showPicker(); } catch (err) {}
+                }
             });
         });
 
         window.stepWorkDate = function(deltaDays) {
             const workDateEl = document.getElementById('workDate');
             if (deltaDays === 0) {
-                workDateEl.value = new Date().toISOString().split('T')[0];
+                workDateEl.value = getLocalTodayStr();
             } else {
-                const cur = workDateEl.value || new Date().toISOString().split('T')[0];
+                const cur = workDateEl.value || getLocalTodayStr();
                 workDateEl.value = getDateString(getDayNumber(cur) + deltaDays);
             }
             workDateEl.setAttribute('data-date', formatDateDisplay(workDateEl.value));
@@ -2960,14 +2998,21 @@
         }
 
         function updateDashboard() {
-            const today = new Date(); const todayStr = today.toISOString().split('T')[0];
-            const currentMonth = todayStr.substring(0, 7); const currentYear = todayStr.substring(0, 4);
+            const todayStr = getLocalTodayStr();
+            const currentMonth = todayStr.substring(0, 7);
+            const currentYear = todayStr.substring(0, 4);
 
-            const monday = new Date(today);
+            const todayDate = new Date();
+            const monday = new Date(todayDate);
             const day = monday.getDay(), diff = monday.getDate() - day + (day === 0 ? -6 : 1);
             monday.setDate(diff);
             const weekDatesSet = new Set(Array.from({length: 7}, (_, i) => {
-                let d = new Date(monday); d.setDate(d.getDate() + i); return d.toISOString().split('T')[0];
+                let d = new Date(monday);
+                d.setDate(d.getDate() + i);
+                const y = d.getFullYear();
+                const m = String(d.getMonth() + 1).padStart(2, '0');
+                const dayNum = String(d.getDate()).padStart(2, '0');
+                return `${y}-${m}-${dayNum}`;
             }));
 
             const weekBucket = createStatsBucket();
@@ -3250,10 +3295,14 @@
             updateOptimizer();
         }
 
-        document.getElementById('workDate').addEventListener('change', () => {
+        const onWorkDateUpdate = () => {
+            const workDateEl = document.getElementById('workDate');
+            workDateEl.setAttribute('data-date', formatDateDisplay(workDateEl.value) || 'DD/MM/YYYY');
             updateProgressBarAndAdvice();
             updateOptimizer();
-        });
+        };
+        document.getElementById('workDate').addEventListener('change', onWorkDateUpdate);
+        document.getElementById('workDate').addEventListener('input', onWorkDateUpdate);
         
         function updateHoursInput() {
             const startInput = document.getElementById('startTime').value;
@@ -3592,7 +3641,7 @@
         window.exportData = function() {
             const blob = new Blob([JSON.stringify({ records, presets, holidays }, null, 2)], { type: 'application/json' });
             const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-            a.download = `SuzukoTracker_Backup_${new Date().toISOString().split('T')[0]}.json`; a.click();
+            a.download = `SuzukoTracker_Backup_${getLocalTodayStr()}.json`; a.click();
             showToast("JSON backup downloaded!");
         };
 
@@ -3618,7 +3667,7 @@
             });
             const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' }); 
             const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-            a.download = `SuzukoTracker_Export_${new Date().toISOString().split('T')[0]}.csv`; a.click();
+            a.download = `SuzukoTracker_Export_${getLocalTodayStr()}.csv`; a.click();
             showToast("CSV exported!");
         };
 
@@ -3663,10 +3712,9 @@
             updateTable();
         });
 
-        const today = new Date();
-        const todayStr = today.toISOString().split('T')[0];
+        const todayStr = getLocalTodayStr();
         document.getElementById('workDate').value = todayStr;
-        historyFilterYear.value = today.getFullYear();
+        historyFilterYear.value = new Date().getFullYear();
         historyFilterMonth.value = ""; 
         
         setFormPayType(formPayType);
